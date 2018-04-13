@@ -1,12 +1,13 @@
 #include <AudioDevice.h>
 #include <EventManager.h>
+#include <SPI.h>
+#include <MFRC522.h>
 
 // ======== MP3 module ========= //
 const int PIN_MP3_TX = 6;
 const int PIN_MP3_RX = 7;
 
 AudioDevice audio(PIN_MP3_TX, PIN_MP3_RX, mp3a);
-int volume = 255;
 
 
 // ======= Event manager ======= //
@@ -19,7 +20,7 @@ EventManager manager;
 #define EVENT_VOLUME     EventManager::kEventUser3
 
 // ======= State machine ======= //
-enum MusicState { STATE_PAUSING, STATE_PLAYING };
+enum MusicState { STATE_WAITING_FOR_LEAF, STATE_PAUSING, STATE_PLAYING };
 MusicState musicState = STATE_PAUSING;
 
 
@@ -33,6 +34,14 @@ MusicState musicState = STATE_PAUSING;
 #define LINEAR_POT_PIN   A2
 int prevPotReading = 0;
 
+// =========== RFID ============ //
+constexpr uint8_t RST_PIN = 9;
+constexpr uint8_t SS_PIN = 10;
+
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+byte prevRFID[10];
+
+
 void setup() {
   Serial.begin(115200);
 
@@ -44,6 +53,9 @@ void setup() {
   prevPotReading = analogRead(LINEAR_POT_PIN);
   audio.initHardware();
   audio.setVolume(volumeOf(prevPotReading));
+
+  SPI.begin();
+  mfrc522.PCD_Init();
 
   manager.addListener(EVENT_PLAY_PAUSE, musicPlaybackCallback);
   manager.addListener(EVENT_NEXT, musicPlaybackCallback);

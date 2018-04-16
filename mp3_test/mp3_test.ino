@@ -24,7 +24,7 @@ const int PIN_MP3_RX = 8;
 
 AudioDevice audio(PIN_MP3_TX, PIN_MP3_RX, mp3a);
 
-int volume = 255;
+int volume = 100;
 
 void setup() {
   Serial.begin(115200);

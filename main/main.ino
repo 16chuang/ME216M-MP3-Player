@@ -4,8 +4,8 @@
 #include <MFRC522.h>
 
 // ======== MP3 module ========= //
-const int PIN_MP3_TX = 6;
-const int PIN_MP3_RX = 7;
+const int PIN_MP3_TX = 7;
+const int PIN_MP3_RX = 8;
 
 AudioDevice audio(PIN_MP3_TX, PIN_MP3_RX, mp3a);
 
@@ -45,13 +45,24 @@ int prevPotReading = 0;
 constexpr uint8_t RST_PIN = 9;
 constexpr uint8_t SS_PIN = 10;
 
-#define PLAYLIST_1_ID   760
-#define PLAYLIST_2_ID   795
-#define PLAYLIST_1_SONG 1
-#define PLAYLIST_2_SONG 1
-
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 int currRFID;
+
+// =========== Songs =========== //
+#define PLAYLIST_0_ID   760
+#define PLAYLIST_1_ID   795
+#define PLAYLIST_2_ID   720
+#define FEED_ME_SONG    7
+#define NUM_SONGS       3 // per playlist
+
+int playlistSongs[3][NUM_SONGS] = {
+  {3, 1, 5},
+  {11, 9, 13},
+  {15, 17, 19}
+};
+
+int songIndex = 0;
+int playlistIndex = -1;
 
 
 void setup() {
@@ -112,9 +123,10 @@ void checkForLeaf() {
 }
 
 void checkForButton(int buttonPin, EventManager::EventType event) {
-  if (digitalRead(buttonPin) == HIGH) {
+  if (digitalRead(buttonPin) == LOW) {
     delay(DEBOUNCE_MS);
-    if (digitalRead(buttonPin) == HIGH) {
+    if (digitalRead(buttonPin) == LOW) {
+      Serial.println(buttonPin);
       manager.queueEvent(event, 0);
     }
   }
@@ -150,16 +162,20 @@ void musicPlaybackCallback(int event, int param) {
         }
       } else if (event == EVENT_NEXT) {
         Serial.println("next");
-        audio.next();
+        songIndex = (songIndex + 1) % NUM_SONGS;
+        audio.setTrack(playlistSongs[playlistIndex][songIndex]);
+        Serial.print("song "); Serial.println(playlistSongs[playlistIndex][songIndex]);
       } else if (event == EVENT_PREV) {
         Serial.println("prev");
-        audio.previous();
+        songIndex = (songIndex - 1 + NUM_SONGS) % NUM_SONGS;
+        audio.setTrack(playlistSongs[playlistIndex][songIndex]);
+        Serial.print("song "); Serial.println(playlistSongs[playlistIndex][songIndex]);
       }
 
       break;
 
     case STATE_NO_LEAF:
-      Serial.println("feed me");
+      feedMe();
       break;
   }
 }
@@ -175,19 +191,28 @@ void rfidCallback(int event, int rfid) {
       audio.pause();
   } else if (leafState == STATE_NO_LEAF && rfid == RFID_IN) { // didn't have leaf, but just got one
       leafState = STATE_LEAF;
+      songIndex = 0;
       
       switch (currRFID) {
+        case PLAYLIST_0_ID:
+          Serial.println("playlist 0 leaf inserted");
+          playlistIndex = 0;
+          break;
         case PLAYLIST_1_ID:
           Serial.println("playlist 1 leaf inserted");
-          audio.setTrack(PLAYLIST_1_SONG);
+          playlistIndex = 1;
           break;
         case PLAYLIST_2_ID:
           Serial.println("playlist 2 leaf inserted");
-          audio.setTrack(PLAYLIST_2_SONG);
+          playlistIndex = 2;
           break;
         default:
-          Serial.println("unknown leaf inserted");
+          Serial.print("unknown leaf inserted ");
+          Serial.println(currRFID);
       }
+
+      audio.setTrack(playlistSongs[playlistIndex][songIndex]);
+      Serial.print("song "); Serial.println(playlistSongs[playlistIndex][songIndex]);
   }
 }
 
@@ -195,10 +220,15 @@ void rfidCallback(int event, int rfid) {
 // Misc helpers
 
 int volumeOf(int analogReading) {
-  return map(analogReading, 1, 1023, 0, 255);
+  return map(analogReading, 1, 680, 0, 255);
 }
 
+// Blocking
 void feedMe() {
-  
+  Serial.println("feed me");
+  audio.setTrack(FEED_ME_SONG);
+  audio.play();
+  delay(1000);
+  audio.pause();
 }
 
